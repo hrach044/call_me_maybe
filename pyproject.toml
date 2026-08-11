@@ -1,0 +1,19 @@
+[project]
+name = "call_my_maybe"
+version = "0.1.0"
+description = "qwerty"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "llm-sdk",
+    "numpy>=2.2.6",
+    "pydantic>=2.13.4",
+]
+
+[tool.uv.workspace]
+members = [
+    "llm_sdk",
+]
+
+[tool.uv.sources]
+llm-sdk = { workspace = true, editable = true }
