@@ -1,5 +1,4 @@
 from pydantic import BaseModel
-from typing import Dict
 
 
 class ParameterSchema(BaseModel):
@@ -16,7 +15,7 @@ class FunctionSchema(BaseModel):
     description: str
     name: str
     description: str
-    parameters: Dict[str, ParameterSchema]
+    parameters: dict[str, ParameterSchema]
     returns: ParameterSchema
 
 
@@ -33,4 +32,4 @@ class FunctionCallResult(BaseModel):
 
     prompt: str
     name: str
-    parameters: Dict[str, int | float | str | bool]
+    parameters: dict[str, int | float | str | bool]
