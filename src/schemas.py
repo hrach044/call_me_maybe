@@ -13,8 +13,6 @@ class FunctionSchema(BaseModel):
 
     name: str
     description: str
-    name: str
-    description: str
     parameters: dict[str, ParameterSchema]
     returns: ParameterSchema
 
