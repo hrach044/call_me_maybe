@@ -76,3 +76,48 @@ def get_legal_next_chars(context: DecodingContext) -> set[str]:
         return {",", "}"}
     else:
         raise ValueError(f"Unhandled state: {context.current_state}")
+
+
+def apply_char(context: DecodingContext, char: str) -> DecodingContext:
+    if context.current_state == State.EXPECT_OPEN_BRACE:
+        return DecodingContext(
+            current_state=State.EXPECT_KEY,
+            built_text=context.built_text + char,
+            current_fragment=context.current_fragment,
+            current_key=context.current_key,
+            remaining_params=context.remaining_params,
+            chosen_function=context.chosen_function,
+            nesting_depth=context.nesting_depth,
+        )
+    elif context.current_state == State.EXPECT_KEY:
+        return DecodingContext(
+            current_state=State.INSIDE_KEY,
+            built_text=context.built_text + char,
+            current_fragment="",
+            current_key=context.current_key,
+            remaining_params=context.remaining_params,
+            chosen_function=context.chosen_function,
+            nesting_depth=context.nesting_depth,
+        )
+    elif context.current_state == State.INSIDE_KEY:
+        if char == '"':
+            return DecodingContext(
+                current_state=State.EXPECT_COLON,
+                built_text=context.built_text + char,
+                current_fragment="",
+                current_key=context.current_fragment,
+                remaining_params=context.remaining_params,
+                chosen_function=context.chosen_function,
+                nesting_depth=context.nesting_depth,
+            )
+        else:
+            return DecodingContext(
+                current_state=State.INSIDE_KEY,
+                built_text=context.built_text + char,
+                current_fragment=context.current_fragment + char,
+                current_key=context.current_key,
+                remaining_params=context.remaining_params,
+                chosen_function=context.chosen_function,
+                nesting_depth=context.nesting_depth,
+            )
+    elif context.current_state == State.EXPECT_COLON:
