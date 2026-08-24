@@ -5,7 +5,9 @@ import string
 
 
 class State(Enum):
-    EXPECT_OPEN_BRACE = "expect_open_brace"
+    EXPECT_NAME_PREFIX = "expect_name_prefix"
+    EXPECT_FUNCTION_NAME = "expect_function_name"
+    EXPECT_PARAMETERS_PREFIX = "expect_parameters_prefix"
     EXPECT_KEY = "expect_key"
     INSIDE_KEY = "inside_key"
     EXPECT_COLON = "expect_colon"
@@ -17,7 +19,8 @@ class State(Enum):
 
 
 class DecodingContext(BaseModel):
-    current_state: State = State.EXPECT_OPEN_BRACE
+    current_state: State = State.EXPECT_NAME_PREFIX
+    all_functions: dict[str, FunctionSchema] = Field(default_factory=dict)
     built_text: str = ""
     current_fragment: str = ""
     current_key: str | None = None
@@ -27,8 +30,22 @@ class DecodingContext(BaseModel):
 
 
 def get_legal_next_chars(context: DecodingContext) -> set[str]:
-    if context.current_state == State.EXPECT_OPEN_BRACE:
-        return {"{"}
+    if context.current_state == State.EXPECT_NAME_PREFIX:
+        literal = "{\"name\":\""
+        return {literal[len(context.current_fragment)]}
+    elif context.current_state == State.EXPECT_FUNCTION_NAME:
+        candidates = [p for p in context.all_functions
+                      if p.startswith(context.current_fragment)]
+        next_chars = set()
+        for candidate in candidates:
+            if len(candidate) != len(context.current_fragment):
+                next_chars.add(candidate[len(context.current_fragment)])
+            else:
+                next_chars.add("\"")
+        return next_chars
+    elif context.current_state == State.EXPECT_PARAMETERS_PREFIX:
+        literal = ",\"parameters\":{"
+        return {literal[len(context.current_fragment)]}
     elif context.current_state == State.EXPECT_KEY:
         return {"\""}
     elif context.current_state == State.INSIDE_KEY:
@@ -79,16 +96,80 @@ def get_legal_next_chars(context: DecodingContext) -> set[str]:
 
 
 def apply_char(context: DecodingContext, char: str) -> DecodingContext:
-    if context.current_state == State.EXPECT_OPEN_BRACE:
-        return DecodingContext(
-            current_state=State.EXPECT_KEY,
-            built_text=context.built_text + char,
-            current_fragment=context.current_fragment,
-            current_key=context.current_key,
-            remaining_params=context.remaining_params,
-            chosen_function=context.chosen_function,
-            nesting_depth=context.nesting_depth,
-        )
+    if context.current_state == State.EXPECT_NAME_PREFIX:
+        literal = "{\"name\":\""
+        new_fragment = context.current_fragment + char
+        if new_fragment == literal:
+            return DecodingContext(
+                current_state=State.EXPECT_FUNCTION_NAME,
+                all_functions=context.all_functions,
+                built_text=context.built_text + char,
+                current_fragment="",
+                current_key=context.current_key,
+                 remaining_params=context.remaining_params,
+                chosen_function=context.chosen_function,
+                nesting_depth=context.nesting_depth,
+            )
+        else:
+            return DecodingContext(
+                current_state=State.EXPECT_NAME_PREFIX,
+                all_functions=context.all_functions,
+                built_text=context.built_text + char,
+                current_fragment=context.current_fragment + char,
+                current_key=context.current_key,
+                remaining_params=context.remaining_params,
+                chosen_function=context.chosen_function,
+                nesting_depth=context.nesting_depth,
+            )
+    elif context.current_state == State.EXPECT_FUNCTION_NAME:
+        if char == "\"":
+            chosen = context.all_functions[context.current_fragment]
+            return DecodingContext(
+                current_state=State.EXPECT_PARAMETERS_PREFIX,
+                all_functions=context.all_functions,
+                built_text=context.built_text + char,
+                chosen_function=chosen,
+                current_fragment="",
+                current_key=context.current_key,
+                remaining_params=set(chosen.parameters),
+                nesting_depth=context.nesting_depth,
+            )
+        else:
+            return DecodingContext(
+                current_state=State.EXPECT_FUNCTION_NAME,
+                all_functions=context.all_functions,
+                built_text=context.built_text + char,
+                current_fragment=context.current_fragment + char,
+                current_key=context.current_key,
+                remaining_params=context.remaining_params,
+                chosen_function=context.chosen_function,
+                nesting_depth=context.nesting_depth,
+            )
+    elif context.current_state == State.EXPECT_PARAMETERS_PREFIX:
+        literal = ",\"parameters\":{"
+        new_fragment = context.current_fragment + char
+        if new_fragment == literal:
+            return DecodingContext(
+                current_state=State.EXPECT_KEY,
+                all_functions=context.all_functions,
+                built_text=context.built_text + char,
+                current_fragment="",
+                current_key=context.current_key,
+                remaining_params=context.remaining_params,
+                chosen_function=context.chosen_function,
+                nesting_depth=context.nesting_depth,
+            )
+        else:
+            return DecodingContext(
+                current_state=State.EXPECT_PARAMETERS_PREFIX,
+                all_functions=context.all_functions,
+                built_text=context.built_text + char,
+                current_fragment=context.current_fragment + char,
+                current_key=context.current_key,
+                remaining_params=context.remaining_params,
+                chosen_function=context.chosen_function,
+                nesting_depth=context.nesting_depth,
+            )
     elif context.current_state == State.EXPECT_KEY:
         return DecodingContext(
             current_state=State.INSIDE_KEY,
@@ -121,3 +202,65 @@ def apply_char(context: DecodingContext, char: str) -> DecodingContext:
                 nesting_depth=context.nesting_depth,
             )
     elif context.current_state == State.EXPECT_COLON:
+        return DecodingContext(
+            current_state=State.EXPECT_VALUE,
+            built_text=context.built_text + char,
+            current_fragment="",
+            current_key=context.current_key,
+            remaining_params=context.remaining_params,
+            chosen_function=context.chosen_function,
+            nesting_depth=context.nesting_depth,
+        )
+    elif context.current_state == State.EXPECT_VALUE:
+        assert context.chosen_function is not None
+        assert context.current_key is not None
+        param_type = (
+                    context.chosen_function.parameters[context.current_key].type
+                )
+        if param_type == "number":
+            return DecodingContext(
+                current_state=State.INSIDE_NUMBER_VALUE,
+                built_text=context.built_text + char,
+                current_fragment=context.current_fragment + char,
+                current_key=context.current_key,
+                remaining_params=context.remaining_params,
+                chosen_function=context.chosen_function,
+                nesting_depth=context.nesting_depth,
+        )
+        elif param_type == "string":
+            return DecodingContext(
+                current_state=State.INSIDE_STRING_VALUE,
+                built_text=context.built_text + char,
+                current_fragment="",
+                current_key=context.current_key,
+                remaining_params=context.remaining_params,
+                chosen_function=context.chosen_function,
+                nesting_depth=context.nesting_depth,
+            )
+        elif param_type == "boolean":
+            return DecodingContext(
+                current_state=State.INSIDE_BOOLEAN_VALUE,
+                built_text=context.built_text + char,
+                current_fragment=context.current_fragment + char,
+                current_key=context.current_key,
+                remaining_params=context.remaining_params,
+                chosen_function=context.chosen_function,
+                nesting_depth=context.nesting_depth,
+            )
+    elif context.current_state == State.INSIDE_NUMBER_VALUE:
+        if char == ",":
+            assert context.current_key is not None
+            return DecodingContext(
+                current_state=State.EXPECT_KEY,
+                built_text=context.built_text + char,
+                current_fragment="",
+                remaining_params=context.remaining_params - {context.current_key},
+                current_key=None,
+                chosen_function=context.chosen_function,
+                nesting_depth=context.nesting_depth,
+            )
+        elif char == "}":
+            ...
+        else:
+            ...
+            
