@@ -91,6 +91,8 @@ def get_legal_next_chars(context: DecodingContext) -> set[str]:
         return next_chars
     elif context.current_state == State.EXPECT_COMMA_OR_CLOSE:
         return {",", "}"}
+    elif context.current_state == State.EXPECT_FINAL_CLOSE:
+        return{"}"}
     else:
         raise ValueError(f"Unhandled state: {context.current_state}")
 
@@ -150,7 +152,7 @@ def apply_char(context: DecodingContext, char: str) -> DecodingContext:
                 all_functions=context.all_functions,
                 built_text=context.built_text + char,
                 current_fragment="",
-                current_key=context.current_key,
+                current_key=None,
                 remaining_params=context.remaining_params,
                 chosen_function=context.chosen_function,
             )
@@ -255,7 +257,7 @@ def apply_char(context: DecodingContext, char: str) -> DecodingContext:
             )
         elif char == "}":
             return DecodingContext(
-                current_state=State.EXPECT_KEY,
+                current_state=State.EXPECT_FINAL_CLOSE,
                 all_functions=context.all_functions,
                 built_text=context.built_text + char,
                 current_fragment="",
