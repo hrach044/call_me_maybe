@@ -77,7 +77,7 @@ def get_legal_next_chars(context: DecodingContext) -> set[str]:
     elif context.current_state == State.INSIDE_STRING_VALUE:
         return set(string.printable)
     elif context.current_state == State.INSIDE_NUMBER_VALUE:
-        return {str(n) for n in range(10)} | {".", ",", "}"}
+        return {str(n) for n in range(10)} | {".", "}", ","}
     elif context.current_state == State.INSIDE_BOOLEAN_VALUE:
         candidates = [p for p in {"true", "false"}
                       if p.startswith(context.current_fragment)]
@@ -90,9 +90,12 @@ def get_legal_next_chars(context: DecodingContext) -> set[str]:
                 next_chars.add("}")
         return next_chars
     elif context.current_state == State.EXPECT_COMMA_OR_CLOSE:
-        return {",", "}"}
+        if len(context.remaining_params) == 0:
+            return {"}"}
+        else:
+            return {"}"}
     elif context.current_state == State.EXPECT_FINAL_CLOSE:
-        return{"}"}
+        return {"}"}
     else:
         raise ValueError(f"Unhandled state: {context.current_state}")
 
@@ -256,15 +259,69 @@ def apply_char(context: DecodingContext, char: str) -> DecodingContext:
                 chosen_function=context.chosen_function,
             )
         elif char == "}":
+            assert context.current_key is not None
             return DecodingContext(
                 current_state=State.EXPECT_FINAL_CLOSE,
                 all_functions=context.all_functions,
                 built_text=context.built_text + char,
                 current_fragment="",
                 remaining_params=context.remaining_params - {context.current_key},
-                current_key=context.current_key,
+                current_key=None,
                 chosen_function=context.chosen_function,
             )
         else:
-            ...
-            
+            return DecodingContext(
+                current_state=State.INSIDE_NUMBER_VALUE,
+                all_functions=context.all_functions,
+                built_text=context.built_text + char,
+                current_fragment=context.current_fragment + char,
+                remaining_params=context.remaining_params,
+                current_key=context.current_key,
+                chosen_function=context.chosen_function,
+            )
+    elif context.current_state == State.INSIDE_STRING_VALUE:
+        if char == '"':
+            assert context.current_key is not None
+            return DecodingContext(
+                current_state=State.EXPECT_COMMA_OR_CLOSE,
+                all_functions=context.all_functions,
+                built_text=context.built_text + char,
+                current_fragment="",
+                remaining_params=context.remaining_params - {context.current_key},
+                current_key=None,
+                chosen_function=context.chosen_function,
+            )
+        else:
+            return DecodingContext(
+                current_state=State.INSIDE_STRING_VALUE,
+                all_functions=context.all_functions,
+                built_text=context.built_text + char,
+                current_fragment=context.current_fragment + char,
+                remaining_params=context.remaining_params,
+                current_key=context.current_key,
+                chosen_function=context.chosen_function,
+            )
+    elif context.current_state == State.INSIDE_BOOLEAN_VALUE:
+        literal = ["true", "false"]
+        new_fragment = context.current_fragment + char
+        if new_fragment in literal:
+            assert context.current_key is not None
+            return DecodingContext(
+                current_state=State.EXPECT_COMMA_OR_CLOSE,
+                all_functions=context.all_functions,
+                built_text=context.built_text + char,
+                current_fragment="",
+                remaining_params=context.remaining_params - {context.current_key},
+                current_key=None,
+                chosen_function=context.chosen_function,
+            )
+        else:
+            return DecodingContext(
+                current_state=State.INSIDE_BOOLEAN_VALUE,
+                all_functions=context.all_functions,
+                built_text=context.built_text + char,
+                current_fragment=context.current_fragment + char,
+                remaining_params=context.remaining_params,
+                current_key=context.current_key,
+                chosen_function=context.chosen_function,
+            )
