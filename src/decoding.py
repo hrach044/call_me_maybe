@@ -17,6 +17,7 @@ class State(Enum):
     INSIDE_BOOLEAN_VALUE = "inside_boolean_value"
     EXPECT_COMMA_OR_CLOSE = "expect_comma_or_close"
     EXPECT_FINAL_CLOSE = "expect_final_close"
+    DONE = "done"
 
 
 class DecodingContext(BaseModel):
@@ -93,7 +94,7 @@ def get_legal_next_chars(context: DecodingContext) -> set[str]:
         if len(context.remaining_params) == 0:
             return {"}"}
         else:
-            return {"}"}
+            return {","}
     elif context.current_state == State.EXPECT_FINAL_CLOSE:
         return {"}"}
     else:
@@ -246,6 +247,8 @@ def apply_char(context: DecodingContext, char: str) -> DecodingContext:
                 remaining_params=context.remaining_params,
                 chosen_function=context.chosen_function,
             )
+        else:
+            raise ValueError(f"Unhandled parameter type: {param_type}")
     elif context.current_state == State.INSIDE_NUMBER_VALUE:
         if char == ",":
             assert context.current_key is not None
@@ -325,3 +328,68 @@ def apply_char(context: DecodingContext, char: str) -> DecodingContext:
                 current_key=context.current_key,
                 chosen_function=context.chosen_function,
             )
+    elif context.current_state == State.EXPECT_COMMA_OR_CLOSE:
+        if char == ",":
+            return DecodingContext(
+                current_state=State.EXPECT_KEY,
+                all_functions=context.all_functions,
+                built_text=context.built_text + char,
+                current_fragment=context.current_fragment,
+                remaining_params=context.remaining_params,
+                current_key=context.current_key,
+                chosen_function=context.chosen_function,
+            )
+        else:
+            return DecodingContext(
+                current_state=State.EXPECT_FINAL_CLOSE,
+                all_functions=context.all_functions,
+                built_text=context.built_text + char,
+                current_fragment=context.current_fragment,
+                remaining_params=context.remaining_params,
+                current_key=context.current_key,
+                chosen_function=context.chosen_function,
+            )
+    elif context.current_state == State.EXPECT_FINAL_CLOSE:
+        return DecodingContext(
+            current_state=State.DONE,
+            all_functions=context.all_functions,
+            built_text=context.built_text + char,
+            current_fragment=context.current_fragment,
+            remaining_params=context.remaining_params,
+            current_key=context.current_key,
+            chosen_function=context.chosen_function,
+        )
+    else:
+        raise ValueError(f"Unhandled state: {context.current_state}")
+
+def is_token_legal(context: DecodingContext, token_str: str) -> DecodingContext | None:
+
+    try:
+        for char in token_str:
+            if char not in get_legal_next_chars(context):
+                return None
+            context = apply_char(context, char)
+    except ValueError:
+        return None
+    return context
+
+def select_next_token(logits: list[float], vocab_strings: list[str],
+    context: DecodingContext,) -> tuple[int, DecodingContext]:
+    best_token_id = None
+    best_score = -float("inf")
+    best_context = None
+
+    for token_id, score in enumerate(logits):
+        token_str = vocab_strings(token_id)
+
+        new_context = is_token_legal(context, token_str)
+
+        if new_context is not None and score > best_score:
+            best_score = score
+            best_token_id = token_id
+            best_context = new_context
+
+    if best_token_id is None:
+        raise RuntimeError("No legal tokens found for the current context!")
+    
+    return best_token_id, best_context
