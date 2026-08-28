@@ -78,7 +78,13 @@ def get_legal_next_chars(context: DecodingContext) -> set[str]:
     elif context.current_state == State.INSIDE_STRING_VALUE:
         return set(string.printable)
     elif context.current_state == State.INSIDE_NUMBER_VALUE:
-        return {str(n) for n in range(10)} | {".", "}", ","}
+        assert context.current_key is not None
+        chars = {str(n) for n in range(10)} | {"."}
+        if context.remaining_params - {context.current_key}:
+            chars.add(",")
+        else:
+            chars.add("}")
+        return chars
     elif context.current_state == State.INSIDE_BOOLEAN_VALUE:
         candidates = [p for p in {"true", "false"}
                       if p.startswith(context.current_fragment)]
@@ -106,7 +112,7 @@ def apply_char(context: DecodingContext, char: str) -> DecodingContext:
         literal = "{\"name\":\""
         new_fragment = context.current_fragment + char
         if new_fragment == literal:
-            return DecodingContext(
+            return DecodingContext.model_construct(
                 current_state=State.EXPECT_FUNCTION_NAME,
                 all_functions=context.all_functions,
                 built_text=context.built_text + char,
@@ -116,7 +122,7 @@ def apply_char(context: DecodingContext, char: str) -> DecodingContext:
                 chosen_function=context.chosen_function,
             )
         else:
-            return DecodingContext(
+            return DecodingContext.model_construct(
                 current_state=State.EXPECT_NAME_PREFIX,
                 all_functions=context.all_functions,
                 built_text=context.built_text + char,
@@ -128,7 +134,7 @@ def apply_char(context: DecodingContext, char: str) -> DecodingContext:
     elif context.current_state == State.EXPECT_FUNCTION_NAME:
         if char == "\"":
             chosen = context.all_functions[context.current_fragment]
-            return DecodingContext(
+            return DecodingContext.model_construct(
                 current_state=State.EXPECT_PARAMETERS_PREFIX,
                 all_functions=context.all_functions,
                 built_text=context.built_text + char,
@@ -138,7 +144,7 @@ def apply_char(context: DecodingContext, char: str) -> DecodingContext:
                 remaining_params=set(chosen.parameters),
             )
         else:
-            return DecodingContext(
+            return DecodingContext.model_construct(
                 current_state=State.EXPECT_FUNCTION_NAME,
                 all_functions=context.all_functions,
                 built_text=context.built_text + char,
@@ -151,7 +157,7 @@ def apply_char(context: DecodingContext, char: str) -> DecodingContext:
         literal = ",\"parameters\":{"
         new_fragment = context.current_fragment + char
         if new_fragment == literal:
-            return DecodingContext(
+            return DecodingContext.model_construct(
                 current_state=State.EXPECT_KEY,
                 all_functions=context.all_functions,
                 built_text=context.built_text + char,
@@ -161,7 +167,7 @@ def apply_char(context: DecodingContext, char: str) -> DecodingContext:
                 chosen_function=context.chosen_function,
             )
         else:
-            return DecodingContext(
+            return DecodingContext.model_construct(
                 current_state=State.EXPECT_PARAMETERS_PREFIX,
                 all_functions=context.all_functions,
                 built_text=context.built_text + char,
@@ -171,7 +177,7 @@ def apply_char(context: DecodingContext, char: str) -> DecodingContext:
                 chosen_function=context.chosen_function,
             )
     elif context.current_state == State.EXPECT_KEY:
-        return DecodingContext(
+        return DecodingContext.model_construct(
             current_state=State.INSIDE_KEY,
             all_functions=context.all_functions,
             built_text=context.built_text + char,
@@ -182,7 +188,7 @@ def apply_char(context: DecodingContext, char: str) -> DecodingContext:
         )
     elif context.current_state == State.INSIDE_KEY:
         if char == '"':
-            return DecodingContext(
+            return DecodingContext.model_construct(
                 current_state=State.EXPECT_COLON,
                 all_functions=context.all_functions,
                 built_text=context.built_text + char,
@@ -192,7 +198,7 @@ def apply_char(context: DecodingContext, char: str) -> DecodingContext:
                 chosen_function=context.chosen_function,
             )
         else:
-            return DecodingContext(
+            return DecodingContext.model_construct(
                 current_state=State.INSIDE_KEY,
                 all_functions=context.all_functions,
                 built_text=context.built_text + char,
@@ -202,7 +208,7 @@ def apply_char(context: DecodingContext, char: str) -> DecodingContext:
                 chosen_function=context.chosen_function,
             )
     elif context.current_state == State.EXPECT_COLON:
-        return DecodingContext(
+        return DecodingContext.model_construct(
             current_state=State.EXPECT_VALUE,
             all_functions=context.all_functions,
             built_text=context.built_text + char,
@@ -218,7 +224,7 @@ def apply_char(context: DecodingContext, char: str) -> DecodingContext:
                     context.chosen_function.parameters[context.current_key].type
                 )
         if param_type == "number":
-            return DecodingContext(
+            return DecodingContext.model_construct(
                 current_state=State.INSIDE_NUMBER_VALUE,
                 all_functions=context.all_functions,
                 built_text=context.built_text + char,
@@ -228,7 +234,7 @@ def apply_char(context: DecodingContext, char: str) -> DecodingContext:
                 chosen_function=context.chosen_function, 
         )
         elif param_type == "string":
-            return DecodingContext(
+            return DecodingContext.model_construct(
                 current_state=State.INSIDE_STRING_VALUE,
                 all_functions=context.all_functions,
                 built_text=context.built_text + char,
@@ -238,7 +244,7 @@ def apply_char(context: DecodingContext, char: str) -> DecodingContext:
                 chosen_function=context.chosen_function,
             )
         elif param_type == "boolean":
-            return DecodingContext(
+            return DecodingContext.model_construct(
                 current_state=State.INSIDE_BOOLEAN_VALUE,
                 all_functions=context.all_functions,
                 built_text=context.built_text + char,
@@ -252,7 +258,7 @@ def apply_char(context: DecodingContext, char: str) -> DecodingContext:
     elif context.current_state == State.INSIDE_NUMBER_VALUE:
         if char == ",":
             assert context.current_key is not None
-            return DecodingContext(
+            return DecodingContext.model_construct(
                 current_state=State.EXPECT_KEY,
                 all_functions=context.all_functions,
                 built_text=context.built_text + char,
@@ -263,7 +269,7 @@ def apply_char(context: DecodingContext, char: str) -> DecodingContext:
             )
         elif char == "}":
             assert context.current_key is not None
-            return DecodingContext(
+            return DecodingContext.model_construct(
                 current_state=State.EXPECT_FINAL_CLOSE,
                 all_functions=context.all_functions,
                 built_text=context.built_text + char,
@@ -273,7 +279,7 @@ def apply_char(context: DecodingContext, char: str) -> DecodingContext:
                 chosen_function=context.chosen_function,
             )
         else:
-            return DecodingContext(
+            return DecodingContext.model_construct(
                 current_state=State.INSIDE_NUMBER_VALUE,
                 all_functions=context.all_functions,
                 built_text=context.built_text + char,
@@ -285,7 +291,7 @@ def apply_char(context: DecodingContext, char: str) -> DecodingContext:
     elif context.current_state == State.INSIDE_STRING_VALUE:
         if char == '"':
             assert context.current_key is not None
-            return DecodingContext(
+            return DecodingContext.model_construct(
                 current_state=State.EXPECT_COMMA_OR_CLOSE,
                 all_functions=context.all_functions,
                 built_text=context.built_text + char,
@@ -295,7 +301,7 @@ def apply_char(context: DecodingContext, char: str) -> DecodingContext:
                 chosen_function=context.chosen_function,
             )
         else:
-            return DecodingContext(
+            return DecodingContext.model_construct(
                 current_state=State.INSIDE_STRING_VALUE,
                 all_functions=context.all_functions,
                 built_text=context.built_text + char,
@@ -309,7 +315,7 @@ def apply_char(context: DecodingContext, char: str) -> DecodingContext:
         new_fragment = context.current_fragment + char
         if new_fragment in literal:
             assert context.current_key is not None
-            return DecodingContext(
+            return DecodingContext.model_construct(
                 current_state=State.EXPECT_COMMA_OR_CLOSE,
                 all_functions=context.all_functions,
                 built_text=context.built_text + char,
@@ -319,7 +325,7 @@ def apply_char(context: DecodingContext, char: str) -> DecodingContext:
                 chosen_function=context.chosen_function,
             )
         else:
-            return DecodingContext(
+            return DecodingContext.model_construct(
                 current_state=State.INSIDE_BOOLEAN_VALUE,
                 all_functions=context.all_functions,
                 built_text=context.built_text + char,
@@ -330,7 +336,7 @@ def apply_char(context: DecodingContext, char: str) -> DecodingContext:
             )
     elif context.current_state == State.EXPECT_COMMA_OR_CLOSE:
         if char == ",":
-            return DecodingContext(
+            return DecodingContext.model_construct(
                 current_state=State.EXPECT_KEY,
                 all_functions=context.all_functions,
                 built_text=context.built_text + char,
@@ -340,7 +346,7 @@ def apply_char(context: DecodingContext, char: str) -> DecodingContext:
                 chosen_function=context.chosen_function,
             )
         else:
-            return DecodingContext(
+            return DecodingContext.model_construct(
                 current_state=State.EXPECT_FINAL_CLOSE,
                 all_functions=context.all_functions,
                 built_text=context.built_text + char,
@@ -350,7 +356,7 @@ def apply_char(context: DecodingContext, char: str) -> DecodingContext:
                 chosen_function=context.chosen_function,
             )
     elif context.current_state == State.EXPECT_FINAL_CLOSE:
-        return DecodingContext(
+        return DecodingContext.model_construct(
             current_state=State.DONE,
             all_functions=context.all_functions,
             built_text=context.built_text + char,
@@ -379,8 +385,8 @@ def select_next_token(logits: list[float], vocab_strings: list[str],
     best_score = -float("inf")
     best_context = None
 
-    for token_id, score in enumerate(logits):
-        token_str = vocab_strings(token_id)
+    for token_id, score in enumerate(logits[:len(vocab_strings)]):
+        token_str = vocab_strings[token_id]
 
         new_context = is_token_legal(context, token_str)
 
