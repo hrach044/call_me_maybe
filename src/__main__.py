@@ -10,7 +10,7 @@ from llm_sdk import Small_LLM_Model
 
 
 def main() -> None:
-    torch.set_num_threads(4)
+    torch.set_num_threads(8)
     print(f"torch threads: {torch.get_num_threads()}")
 
     # 1. Load input files

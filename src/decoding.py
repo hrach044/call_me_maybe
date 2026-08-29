@@ -378,6 +378,23 @@ def is_token_legal(context: DecodingContext, token_str: str) -> DecodingContext 
         return None
     return context
 
+def is_token_legal_fast(context: DecodingContext, token_str: str) -> DecodingContext | None:
+    if context.current_state == State.INSIDE_STRING_VALUE and '"' not in token_str:
+        # No closing quote in this token -> definitely stays inside the string,
+        # every char is legal (INSIDE_STRING_VALUE allows all of string.printable).
+        if not all(c in string.printable for c in token_str):
+            return None
+        return DecodingContext.model_construct(
+            current_state=State.INSIDE_STRING_VALUE,
+            all_functions=context.all_functions,
+            built_text=context.built_text + token_str,
+            current_fragment=context.current_fragment + token_str,
+            current_key=context.current_key,
+            remaining_params=context.remaining_params,
+            chosen_function=context.chosen_function,
+        )
+    # Fall back to the careful, correct char-by-char path for everything else
+    return is_token_legal(context, token_str)
 
 def select_next_token(logits: list[float], vocab_strings: list[str],
     context: DecodingContext,) -> tuple[int, DecodingContext]:
@@ -388,7 +405,7 @@ def select_next_token(logits: list[float], vocab_strings: list[str],
     for token_id, score in enumerate(logits[:len(vocab_strings)]):
         token_str = vocab_strings[token_id]
 
-        new_context = is_token_legal(context, token_str)
+        new_context = is_token_legal_fast(context, token_str)
 
         if new_context is not None and score > best_score:
             best_score = score
