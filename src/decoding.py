@@ -369,7 +369,6 @@ def apply_char(context: DecodingContext, char: str) -> DecodingContext:
         raise ValueError(f"Unhandled state: {context.current_state}")
 
 def is_token_legal(context: DecodingContext, token_str: str) -> DecodingContext | None:
-
     try:
         for char in token_str:
             if char not in get_legal_next_chars(context):
@@ -378,6 +377,7 @@ def is_token_legal(context: DecodingContext, token_str: str) -> DecodingContext 
     except ValueError:
         return None
     return context
+
 
 def select_next_token(logits: list[float], vocab_strings: list[str],
     context: DecodingContext,) -> tuple[int, DecodingContext]:
@@ -397,5 +397,5 @@ def select_next_token(logits: list[float], vocab_strings: list[str],
 
     if best_token_id is None:
         raise RuntimeError("No legal tokens found for the current context!")
-    
+
     return best_token_id, best_context
