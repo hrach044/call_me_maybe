@@ -397,17 +397,24 @@ def is_token_legal_fast(context: DecodingContext, token_str: str) -> DecodingCon
     return is_token_legal(context, token_str)
 
 def select_next_token(logits: list[float], vocab_strings: list[str],
-    context: DecodingContext,) -> tuple[int, DecodingContext]:
+    context: DecodingContext, first_char_to_token_ids: dict[str, list[int]],
+    ) -> tuple[int, DecodingContext]:
     best_token_id = None
     best_score = -float("inf")
     best_context = None
 
-    for token_id, score in enumerate(logits[:len(vocab_strings)]):
+    legal_first_chars = get_legal_next_chars(context)
+    candidate_ids: set[int] = set()
+    for c in legal_first_chars:
+        candidate_ids.update(first_char_to_token_ids.get(c, ()))
+
+    for token_id in candidate_ids:
+        score = logits[token_id]
+        if score <= best_score:
+            continue
         token_str = vocab_strings[token_id]
-
         new_context = is_token_legal_fast(context, token_str)
-
-        if new_context is not None and score > best_score:
+        if new_context is not None:
             best_score = score
             best_token_id = token_id
             best_context = new_context

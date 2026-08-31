@@ -1,5 +1,6 @@
 import json
 from pathlib import Path
+from collections import defaultdict
 
 import torch
 import time 
@@ -10,7 +11,6 @@ from llm_sdk import Small_LLM_Model
 
 
 def main() -> None:
-    torch.set_num_threads(8)
     print(f"torch threads: {torch.get_num_threads()}")
 
     # 1. Load input files
@@ -44,6 +44,11 @@ def main() -> None:
     vocab_size = model._tokenizer.vocab_size
     vocab_strings = [model.decode([i]) for i in range(vocab_size)]
 
+    first_char_to_token_ids: dict[str, list[int]] = defaultdict(list)
+    for token_id, token_str in enumerate(vocab_strings):
+        if token_str:
+            first_char_to_token_ids[token_str[0]].append(token_id)
+
     results = []
 
     # 3. Process each prompt
@@ -65,11 +70,12 @@ def main() -> None:
             logits = model.get_logits_from_input_ids(input_ids)
             t1 = time.time()
             print(f"model call: {t1-t0:.3f}s")
-            print(f"state={context.current_state}, built_text={context.built_text!r}")
+            print(f"                        {context.built_text!r}")
 
-            next_token_id, context = select_next_token(logits, vocab_strings, context)
+            next_token_id, context = select_next_token(logits, vocab_strings, context, first_char_to_token_ids)
             t2 = time.time()
-            print(f"selct token: {t2-t1:.3f}s")
+            print(f"select tok: {t2-t1:.3f}s")
+
             input_ids.append(next_token_id)
             generated_ids.append(next_token_id)
 
