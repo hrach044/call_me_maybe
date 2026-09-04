@@ -80,17 +80,11 @@ def main() -> None:
         print(f"Generating for prompt: '{user_prompt}'...")
          # add at top of file if not already there
 
-        print(f"prompt length in tokens: {len(input_ids)}")
         while context.current_state != State.DONE:
-            t0 = time.time()
             logits = model.get_logits_from_input_ids(input_ids)
-            t1 = time.time()
-            print(f"model call: {t1-t0:.3f}s")
-            print(f"          {context.built_text!r}")
+            print(f"{context.built_text!r}")
 
             next_token_id, context = select_next_token(logits, vocab_strings, context, first_char_to_token_ids)
-            t2 = time.time()
-            print(f"select tok: {t2-t1:.3f}s")
 
             input_ids.append(next_token_id)
             generated_ids.append(next_token_id)
