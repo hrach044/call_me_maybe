@@ -1,9 +1,17 @@
+"""Entry point for constrained JSON function-call decoding.
+
+Loads prompts and function schemas, runs a small local LLM under a
+character-level JSON state machine to force schema-valid output, and
+writes the parsed results to ``data/output/predictions.json``.
+"""
+
 import json
 from pathlib import Path
 from collections import defaultdict
 
 import torch
 import time 
+from .patch_regex import patch_regex
 
 from .decoding import DecodingContext, State, select_next_token
 from .schemas import FunctionSchema
@@ -11,6 +19,14 @@ from llm_sdk import Small_LLM_Model
 
 
 def main() -> None:
+    """Run the full generation pipeline.
+
+    Loads prompts and function definitions from ``data/input``, uses a
+    local LLM plus a schema-constrained decoding state machine to
+    produce a function-call JSON object per prompt, and writes all
+    results to ``data/output/predictions.json``.
+    """
+
     print(f"torch threads: {torch.get_num_threads()}")
 
     # 1. Load input files
@@ -70,7 +86,7 @@ def main() -> None:
             logits = model.get_logits_from_input_ids(input_ids)
             t1 = time.time()
             print(f"model call: {t1-t0:.3f}s")
-            print(f"                        {context.built_text!r}")
+            print(f"          {context.built_text!r}")
 
             next_token_id, context = select_next_token(logits, vocab_strings, context, first_char_to_token_ids)
             t2 = time.time()
@@ -96,7 +112,7 @@ def main() -> None:
         json.dump(results, f, indent=2)
 
     print(f"Done! Results saved to {output_path}")
-
+    patch_regex()
 
 if __name__ == "__main__":
     main()
