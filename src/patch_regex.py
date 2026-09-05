@@ -9,6 +9,7 @@ known case in the saved predictions file.
 import json
 from pathlib import Path
 
+
 def patch_regex() -> None:
     """Fix a known bad regex value in ``data/output/predictions.json``.
 
@@ -23,7 +24,10 @@ def patch_regex() -> None:
     data = json.loads(path.read_text())
 
     for item in data:
-        if item["name"] == "fn_substitute_string_with_regex" and item["parameters"].get("regex") == "/cat/g":
+        if (
+            item["name"] == "fn_substitute_string_with_regex"
+            and item["parameters"].get("regex") == "/cat/g"
+        ):
             item["parameters"]["regex"] = "cat"
 
     path.write_text(json.dumps(data, indent=2))

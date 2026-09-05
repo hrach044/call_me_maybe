@@ -173,7 +173,7 @@ def apply_char(context: DecodingContext, char: str) -> DecodingContext:
                 built_text=context.built_text + char,
                 current_fragment="",
                 current_key=context.current_key,
-                 remaining_params=context.remaining_params,
+                remaining_params=context.remaining_params,
                 chosen_function=context.chosen_function,
             )
         else:
@@ -276,8 +276,7 @@ def apply_char(context: DecodingContext, char: str) -> DecodingContext:
         assert context.chosen_function is not None
         assert context.current_key is not None
         param_type = (
-                    context.chosen_function.parameters[context.current_key].type
-                )
+         context.chosen_function.parameters[context.current_key].type)
         if param_type == "number":
             return DecodingContext.model_construct(
                 current_state=State.INSIDE_NUMBER_VALUE,
@@ -286,8 +285,8 @@ def apply_char(context: DecodingContext, char: str) -> DecodingContext:
                 current_fragment=context.current_fragment + char,
                 current_key=context.current_key,
                 remaining_params=context.remaining_params,
-                chosen_function=context.chosen_function, 
-        )
+                chosen_function=context.chosen_function,
+            )
         elif param_type == "string":
             return DecodingContext.model_construct(
                 current_state=State.INSIDE_STRING_VALUE,
@@ -318,7 +317,8 @@ def apply_char(context: DecodingContext, char: str) -> DecodingContext:
                 all_functions=context.all_functions,
                 built_text=context.built_text + char,
                 current_fragment="",
-                remaining_params=context.remaining_params - {context.current_key},
+                remaining_params=context.remaining_params - {
+                    context.current_key},
                 current_key=None,
                 chosen_function=context.chosen_function,
             )
@@ -329,7 +329,8 @@ def apply_char(context: DecodingContext, char: str) -> DecodingContext:
                 all_functions=context.all_functions,
                 built_text=context.built_text + char,
                 current_fragment="",
-                remaining_params=context.remaining_params - {context.current_key},
+                remaining_params=context.remaining_params - {
+                    context.current_key},
                 current_key=None,
                 chosen_function=context.chosen_function,
             )
@@ -351,7 +352,8 @@ def apply_char(context: DecodingContext, char: str) -> DecodingContext:
                 all_functions=context.all_functions,
                 built_text=context.built_text + char,
                 current_fragment="",
-                remaining_params=context.remaining_params - {context.current_key},
+                remaining_params=context.remaining_params - {
+                    context.current_key},
                 current_key=None,
                 chosen_function=context.chosen_function,
             )
@@ -366,16 +368,17 @@ def apply_char(context: DecodingContext, char: str) -> DecodingContext:
                 chosen_function=context.chosen_function,
             )
     elif context.current_state == State.INSIDE_BOOLEAN_VALUE:
-        literal = ["true", "false"]
+        literal2 = ["true", "false"]
         new_fragment = context.current_fragment + char
-        if new_fragment in literal:
+        if new_fragment in literal2:
             assert context.current_key is not None
             return DecodingContext.model_construct(
                 current_state=State.EXPECT_COMMA_OR_CLOSE,
                 all_functions=context.all_functions,
                 built_text=context.built_text + char,
                 current_fragment="",
-                remaining_params=context.remaining_params - {context.current_key},
+                remaining_params=context.remaining_params - {
+                    context.current_key},
                 current_key=None,
                 chosen_function=context.chosen_function,
             )
@@ -423,7 +426,9 @@ def apply_char(context: DecodingContext, char: str) -> DecodingContext:
     else:
         raise ValueError(f"Unhandled state: {context.current_state}")
 
-def is_token_legal(context: DecodingContext, token_str: str) -> DecodingContext | None:
+
+def is_token_legal(context: DecodingContext,
+                   token_str: str) -> DecodingContext | None:
     """Check whether a full token string is legal, char by char.
 
     Args:
@@ -444,7 +449,9 @@ def is_token_legal(context: DecodingContext, token_str: str) -> DecodingContext 
         return None
     return context
 
-def is_token_legal_fast(context: DecodingContext, token_str: str) -> DecodingContext | None:
+
+def is_token_legal_fast(context: DecodingContext,
+                        token_str: str) -> DecodingContext | None:
     """Check token legality, with a fast path for string-value runs.
 
     Args:
@@ -460,9 +467,13 @@ def is_token_legal_fast(context: DecodingContext, token_str: str) -> DecodingCon
         ``is_token_legal``.
     """
 
-    if context.current_state == State.INSIDE_STRING_VALUE and '"' not in token_str:
+    if (
+        context.current_state == State.INSIDE_STRING_VALUE
+        and '"' not in token_str
+    ):
         # No closing quote in this token -> definitely stays inside the string,
-        # every char is legal (INSIDE_STRING_VALUE allows all of string.printable).
+        # every char is legal (INSIDE_STRING_VALUE allows all
+        # of string.printable).
         if not all(c in string.printable for c in token_str):
             return None
         return DecodingContext.model_construct(
@@ -477,9 +488,13 @@ def is_token_legal_fast(context: DecodingContext, token_str: str) -> DecodingCon
     # Fall back to the careful, correct char-by-char path for everything else
     return is_token_legal(context, token_str)
 
-def select_next_token(logits: list[float], vocab_strings: list[str],
-    context: DecodingContext, first_char_to_token_ids: dict[str, list[int]],
-    ) -> tuple[int, DecodingContext]:
+
+def select_next_token(
+    logits: list[float],
+    vocab_strings: list[str],
+    context: DecodingContext,
+    first_char_to_token_ids: dict[str, list[int]],
+) -> tuple[int, DecodingContext]:
     """Pick the highest-scoring legal next token.
 
     Args:
@@ -499,7 +514,7 @@ def select_next_token(logits: list[float], vocab_strings: list[str],
         RuntimeError: If no candidate token is legal in the current
             state.
     """
-    
+
     best_token_id = None
     best_score = -float("inf")
     best_context = None
@@ -523,4 +538,5 @@ def select_next_token(logits: list[float], vocab_strings: list[str],
     if best_token_id is None:
         raise RuntimeError("No legal tokens found for the current context!")
 
+    assert best_context is not None
     return best_token_id, best_context

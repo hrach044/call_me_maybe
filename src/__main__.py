@@ -8,9 +8,6 @@ writes the parsed results to ``data/output/predictions.json``.
 import json
 from pathlib import Path
 from collections import defaultdict
-
-import torch
-import time 
 from .patch_regex import patch_regex
 
 from .decoding import DecodingContext, State, select_next_token
@@ -26,8 +23,6 @@ def main() -> None:
     produce a function-call JSON object per prompt, and writes all
     results to ``data/output/predictions.json``.
     """
-
-    print(f"torch threads: {torch.get_num_threads()}")
 
     # 1. Load input files
     input_dir = Path("data/input")
@@ -47,10 +42,12 @@ def main() -> None:
 
     # Compact version for the prompt text (no "returns", no indentation)
     functions_for_prompt = [
-        {"name": fn["name"], "description": fn["description"], "parameters": fn["parameters"]}
+        {"name": fn["name"], "description": fn["description"],
+         "parameters": fn["parameters"]}
         for fn in functions_data
     ]
-    system_prompt = f"Available functions:\n{json.dumps(functions_for_prompt)}\n\n"
+    system_prompt = (f"Available functions:"
+                     f"\n{json.dumps(functions_for_prompt)}\n\n")
 
     # 2. Initialize Model & Pre-decode Vocab Cache
     print("Loading model...")
@@ -70,7 +67,8 @@ def main() -> None:
     # 3. Process each prompt
     for item in prompts_data:
         user_prompt = item["prompt"]
-        full_prompt = f"{system_prompt}User: {user_prompt}\nJSON Function Call:"
+        full_prompt = (f"{system_prompt}User: "
+                       f"{user_prompt}\nJSON Function Call:")
 
         # Reset State Machine for new prompt
         context = DecodingContext(all_functions=all_functions)
@@ -78,13 +76,14 @@ def main() -> None:
         generated_ids = []
 
         print(f"Generating for prompt: '{user_prompt}'...")
-         # add at top of file if not already there
+        # add at top of file if not already there
 
         while context.current_state != State.DONE:
             logits = model.get_logits_from_input_ids(input_ids)
             print(f"{context.built_text!r}")
 
-            next_token_id, context = select_next_token(logits, vocab_strings, context, first_char_to_token_ids)
+            next_token_id, context = select_next_token(
+                logits, vocab_strings, context, first_char_to_token_ids)
 
             input_ids.append(next_token_id)
             generated_ids.append(next_token_id)
@@ -107,6 +106,7 @@ def main() -> None:
 
     print(f"Done! Results saved to {output_path}")
     patch_regex()
+
 
 if __name__ == "__main__":
     main()
